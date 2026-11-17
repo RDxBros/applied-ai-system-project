@@ -27,6 +27,15 @@ owner.name = st.text_input("Owner name", value=owner.name)
 owner.available_minutes = st.number_input(
     "Minutes available today", min_value=10, max_value=1440, value=owner.available_minutes
 )
+notes = st.text_input(
+    "Care notes for the AI advisor (optional)",
+    value=owner.preferences.get("notes", ""),
+    placeholder="senior cat, joint stiffness",
+).strip()
+if notes:
+    owner.preferences["notes"] = notes
+else:
+    owner.preferences.pop("notes", None)
 
 st.subheader("Add a Pet")
 with st.form("add_pet_form", clear_on_submit=True):
