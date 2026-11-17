@@ -43,19 +43,8 @@ Further steps for a real deployment: have a veterinarian review the knowledge ba
 
 ## AI collaboration
 
-<!-- Write this section in your own words. The notes below are facts from this project you can draw on; replace them with your answer. -->
+I used an AI coding assistant for most of this project. I'd tell it what I wanted, it would read the code and suggest a plan, and I'd critique the plan and implementation, and then decide what to go ahead with. It wrote a lot of the code and tests and ran them. I picked the feature and the AI provider, reviewed what changed, and committed the work one step at a time so I could keep track of it. I made sure to test edge cases to ensure they were accounted for.
 
-**How I used AI during this project:**
+**A suggestion I accepted:** The first time I tried the advisor with real Gemini, the model was overloaded and kept returning errors. One call also froze for over a minute and a half. The AI suggested a time limit on each call, a couple of retries, and a backup model if the main one still failed. I said yes because without it the app just didn't work whenever Google was busy, and the change was small and could be tested without calling the real API.
 
-<!-- e.g. used an AI coding agent to compare feature options against the brief, plan the RAG design, implement ai_advisor.py and its tests, run the live Gemini tests, and draft documentation; I made the scoping decisions and reviewed results. -->
-
-**One suggestion I accepted:**
-
-<!-- Candidate: after the live 503 errors and a 90-second hang, the AI suggested adding a timeout, retries with backoff, and a fallback model. You accepted it because the app was unusable when Google was overloaded, and the fix was small and testable with a fake client. -->
-
-**One suggestion I did not accept as written (and why):**
-
-<!-- Candidates:
-- The AI offered "RAG advisor plus an evaluation script" and other options (agentic workflow, fine-tuning); you scoped it down to the RAG advisor first because it was the best balance of effort and usefulness (fine-tuning was overkill, the agent harder to test).
-- The AI defaulted to the newest model (gemini-3.8-flash); you told it the model didn't need to be the latest, and the project switched to gemini-3.1-flash-lite, which was available and cheaper.
-- Your own Module 2 example: you kept recurrence based on today's date when the AI called it a bug. -->
+**A suggestion I changed:** When I asked which feature to build, the AI suggested the RAG advisor plus a separate evaluation script, and it set the app up to use the newest Gemini model. I cut it back to just the advisor so I could get one thing working first, and I told it the model didn't have to be the newest. That turned out to be crucial because the newest models were overloaded, and the lighter one we switched to answered right away. We did add an evaluation script later, but only once the advisor worked and I needed real output to show in the README.
