@@ -1,0 +1,41 @@
+%% DRAFT system architecture for the PawPal+ RAG Care Advisor (finalize after implementation)
+flowchart LR
+    subgraph Input
+        U[Owner in Streamlit UI<br/>picks a pet, clicks Suggest tasks]
+        PET[Pet profile<br/>species, age, preferences, existing tasks]
+    end
+
+    subgraph RAG["AI Care Advisor (ai_advisor.py)"]
+        KB[(knowledge/*.md<br/>care guideline passages)]
+        R[Retriever<br/>keyword scoring, top-k passages]
+        PR[Prompt builder<br/>pet profile + retrieved passages]
+        G[Gemini LLM<br/>structured JSON task suggestions]
+        V{Guardrails<br/>valid time, duration, priority,<br/>frequency, cites a retrieved source,<br/>not a duplicate}
+    end
+
+    subgraph Output
+        H{Human review<br/>owner accepts or rejects<br/>each suggestion}
+        T[Task objects added to Pet]
+        S[Scheduler.build_daily_plan]
+        P[Daily plan + reasons<br/>shown in UI]
+    end
+
+    LOG[(pawpal.log<br/>retrievals, LLM calls,<br/>rejections, errors)]
+    TEST[pytest with fake LLM<br/>retriever, guardrails,<br/>end-to-end to scheduler]
+
+    U --> PET --> R
+    KB --> R
+    R -->|top passages| PR
+    PET --> PR
+    PR --> G
+    G -->|raw JSON| V
+    V -->|valid suggestions + source| H
+    V -->|rejected items + reason| LOG
+    G -.API error / bad JSON.-> LOG
+    H -->|accepted| T
+    H -->|rejected| X[discarded]
+    T --> S --> P
+
+    TEST -.checks.-> R
+    TEST -.checks.-> V
+    TEST -.checks.-> S
