@@ -22,6 +22,15 @@
 - **Model availability.** Results depend on Google's hosted models. During testing, newer models returned 503 (overloaded) and older ones 404 (retired); model names must be updated over time.
 - **Small evaluation.** 3 live cases and one repeat run are enough to show the system works, not to measure accuracy across many pets.
 
+## Future improvements
+
+- **Let the AI see the schedule.** Pass the pet's existing fixed times into the prompt, or check suggested times against the scheduler before showing them, so suggestions like the clashing meal times in case 1 get caught or moved earlier.
+- **Better retrieval.** Add synonyms or switch to embeddings so care notes like "arthritis" or misspellings still find the right passage.
+- **Richer pet profile.** Use breed and size, so a 7-year-old giant breed counts as senior.
+- **Bigger, reviewed knowledge base.** More species and topics, checked by a veterinarian.
+- **Check meaning, not just format.** Add a second check that the task really matches what its cited passage says (for example, a duration that matches the guideline).
+- **Larger evaluation.** Run many more pet profiles and track the pass rate over time instead of 3 cases.
+
 ## Misuse and prevention
 
 | Possible misuse | How the system limits it |
