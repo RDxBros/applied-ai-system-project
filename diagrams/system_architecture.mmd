@@ -1,0 +1,53 @@
+%% Final system architecture: PawPal+ with the RAG AI Care Advisor
+flowchart LR
+    subgraph Input
+        U[Owner in Streamlit UI<br/>picks a pet, clicks Suggest tasks]
+        PET[Pet profile<br/>species, age, owner preferences,<br/>existing tasks]
+    end
+
+    subgraph Advisor["AI Care Advisor (ai_advisor.py)"]
+        KB[(knowledge/*.md<br/>6 files, 20 guideline passages)]
+        R[Retriever<br/>keyword scoring, top 4 passages,<br/>other species excluded]
+        PR[Prompt builder<br/>pet profile + retrieved passages]
+        G[Gemini<br/>gemini-3.1-flash-lite<br/>structured JSON output]
+        RT{Retry + fallback<br/>30 s timeout, 2 retries on 429/5xx,<br/>then gemini-3.6-flash}
+        V{Guardrails<br/>valid title, duration 1-240, priority,<br/>frequency, HH:MM before midnight,<br/>cites a retrieved source, no duplicates}
+    end
+
+    subgraph Output
+        H{Human review<br/>owner ticks which<br/>suggestions to keep}
+        T[Task objects added to Pet<br/>with source id]
+        S[Scheduler.build_daily_plan<br/>fixed times first, then priority,<br/>time budget, conflict check]
+        P[Daily plan in UI<br/>reason cites guideline,<br/>skipped tasks explained]
+    end
+
+    LOG[(pawpal.log<br/>retrieved ids, model used, latency,<br/>accepted/rejected counts, errors)]
+    ERR[Friendly error in UI<br/>app never crashes]
+
+    subgraph Testing["Testing and evaluation"]
+        PY[pytest: 49 tests, fake LLM<br/>retriever, guardrails, retry,<br/>scheduler end to end]
+        EV[evaluate.py: 3 live Gemini cases,<br/>guardrail cases, consistency check,<br/>prints a PASS/FAIL report]
+    end
+
+    U --> PET --> R
+    KB --> R
+    R -->|top passages| PR
+    PET --> PR
+    PR --> G
+    G <--> RT
+    G -->|raw JSON| V
+    RT -.all attempts failed.-> ERR
+    V -.bad JSON.-> ERR
+    V -->|valid suggestions + rationale + source| H
+    V -->|rejected items + reason| LOG
+    RT -.attempt failures.-> LOG
+    H -->|accepted| T
+    H -->|unticked| X[discarded]
+    T --> S --> P
+
+    PY -.checks.-> R
+    PY -.checks.-> V
+    PY -.checks.-> RT
+    PY -.checks.-> S
+    EV -.runs end to end.-> U
+    EV -.reads.-> P
