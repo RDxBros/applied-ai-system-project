@@ -49,6 +49,52 @@ Open `.env` and paste your key after `GEMINI_API_KEY=`. `GEMINI_MODEL` and `GEMI
 
 In the app: set the owner (optionally add care notes such as "senior cat, joint stiffness", which the retriever uses), add a pet (name, species), open **AI Care Advisor**, click **Suggest tasks**, untick anything you don't want, click **Add selected tasks**, then **Generate schedule**.
 
+## Sample command executions
+
+Unit tests (no API key needed):
+
+```
+$ python -m pytest
+collected 49 items
+
+tests\test_ai_advisor.py ............................                    [ 57%]
+tests\test_pawpal.py .....................                               [100%]
+
+============================= 49 passed in 1.30s ==============================
+```
+
+Live evaluation against Gemini (excerpt, full output in [`eval_output.txt`](eval_output.txt)):
+
+```
+$ python evaluate.py
+
+=== Case 1: Biscuit, 4-year-old dog, preferences={}
+  Retrieved: ['dog.md#dental-care', 'dog.md#exercise-and-walks', 'dog.md#feeding-routine', 'life_stages.md#adult-pets']
+  Suggested: Morning walk (30 min, high, daily, 07:00) <- dog.md#exercise-and-walks
+  ...
+    [PASS] advisor returned without error
+    [PASS] at least one suggestion accepted
+    [PASS] every suggestion cites a retrieved passage
+    [PASS] no suggestion duplicates an existing task
+  ...
+=== Consistency: Case 1 run again
+  Source overlap: 100%
+    [PASS] repeat run cites mostly the same guidelines (>= 50% overlap)
+
+=== Guardrail cases (scripted LLM output)
+  Rejected: 'Morning walk' - duplicates an existing task
+  Rejected: 'Agility class' - cites a source that was not retrieved
+  Rejected: 'Midnight snack' - invalid time
+  Rejected: 'Marathon' - duration_minutes must be an integer from 1 to 240
+  Rejected: 'Late walk' - task would end after midnight
+  Accepted: ['Evening walk']
+  Non-JSON reply -> error: Gemini returned unparseable JSON: Expecting value: line 1 column 1 (char 0)
+  Outage -> error: Gemini is overloaded right now (tried primary and fallback models). Please try again in a minute.
+  Senior cat retrieval: ['life_stages.md#senior-pets', 'cat.md#litter-box-care', 'cat.md#play-and-enrichment']
+
+=== Summary: 25/25 checks passed
+```
+
 ## Sample interactions
 
 Real output from `python evaluate.py` (model `gemini-3.1-flash-lite`, 90 minutes available). Full log: [`eval_output.txt`](eval_output.txt).
@@ -197,3 +243,10 @@ reflection.md          Module 2 reflection
 ## Reflection
 
 Building this showed me that adding AI to a working system is mostly about the parts around the model: choosing what it sees, checking what it says, and deciding what happens when it fails. The most useful bugs only appeared when I ran the real model. The responsible-AI reflection (limitations, misuse, surprises and AI collaboration) is in [`model_card.md`](model_card.md).
+
+## Portfolio
+
+- **Code:** https://github.com/RDxBros/applied-ai-system-project
+- **Video walkthrough:** _optional, add Loom link here_
+
+**What this project says about me as an AI engineer:** I don't trust a model just because it gives a nice-looking answer. I gave the AI a narrow job, made it show where each suggestion came from, and wrote checks for everything it returns before it touches the real schedule. When the real model broke things my tests missed, I ran it live, found out why, and fixed the actual cause instead of loosening the checks. I care about building AI features that still behave sensibly when the model is wrong, slow, or unavailable.

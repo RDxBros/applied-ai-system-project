@@ -34,6 +34,14 @@
 
 Further steps for a real deployment: have a veterinarian review the knowledge base, add a visible disclaimer in the UI, and rate-limit requests per user.
 
+## Testing results
+
+- **Unit tests:** 49/49 pass (21 for the scheduler, 28 for the advisor). They use a fake LLM, so they need no API key: retrieval, every guardrail, retry and fallback, error handling, and accepted suggestions flowing into the daily plan.
+- **Live evaluation (`evaluate.py`):** 25/25 checks passed. 3 real pets (adult dog, senior cat, puppy) produced 13 suggestions; all 13 cited a retrieved guideline and none duplicated an existing task. A repeat run cited the same guidelines (100% overlap).
+- **Guardrails:** all 6 bad suggestions in the scripted test were rejected for the right reason, and a non-JSON reply and a simulated outage both produced a friendly error instead of a crash.
+- **Before vs after fixes:** the first live run rejected 5 of 5 valid suggestions (bracketed source ids); after the fix, 0 valid suggestions were wrongly rejected. One early call hung for over 90 seconds; every call now has a 30 s limit, retries, a fallback model, and a clear error if all of them fail (the fallback path is covered by unit tests, but it never had to kick in during live runs).
+- **Known miss:** in case 1, 2 of 5 suggestions (the meals) were skipped by the scheduler because Gemini timed them at the same moment as the walks.
+
 ## What surprised me while testing reliability
 
 - **The fake-LLM tests passed but the real model failed.** All unit tests passed, yet the first live run rejected 5 out of 5 good suggestions. Gemini wrote sources as `[dog.md#exercise-and-walks]`, probably copying how the prompt lists guidelines (`[id] heading`), so the "cites a retrieved source" guardrail rejected all of them. Only a live run could reveal this. The fix strips the brackets and still rejects made-up sources.
