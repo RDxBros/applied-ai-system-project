@@ -1,42 +1,18 @@
 import streamlit as st
 
+from ai_advisor import setup_logging, suggest_tasks
 from pawpal_system import Owner, Pet, Priority, Scheduler, Task, format_time, parse_time
+
+setup_logging()
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
 
-st.markdown(
-    """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
-"""
+st.caption(
+    "Plan pet care across your pets — and let the AI Care Advisor suggest tasks "
+    "grounded in real care guidelines."
 )
-
-with st.expander("Scenario", expanded=True):
-    st.markdown(
-        """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
-"""
-    )
 
 st.divider()
 
@@ -109,6 +85,50 @@ if owner.pets:
                     st.success(f"Added '{task_title.strip()}' for {pet_choice}.")
 else:
     st.info("Add a pet first, then you can give it tasks.")
+
+st.subheader("AI Care Advisor")
+if owner.pets:
+    advisor_pet_name = st.selectbox(
+        "Get suggestions for which pet?", [p.name for p in owner.pets], key="advisor_pet"
+    )
+    advisor_pet = next(p for p in owner.pets if p.name == advisor_pet_name)
+    if st.button("Suggest tasks"):
+        with st.spinner("Asking Gemini for care suggestions..."):
+            st.session_state.advisor_result = {
+                "pet": advisor_pet_name,
+                "result": suggest_tasks(advisor_pet, preferences=owner.preferences),
+            }
+    stored = st.session_state.get("advisor_result")
+    if stored and stored["pet"] == advisor_pet_name:
+        result = stored["result"]
+        if result.error:
+            st.error(result.error)
+        checked = []
+        for i, s in enumerate(result.suggestions):
+            label = (
+                f"**{s.title}** — {s.duration_minutes} min, {s.priority.name.lower()} priority, "
+                f"{s.frequency}, {s.time or 'flexible'}\n\n{s.rationale} *(source: {s.source})*"
+            )
+            checked.append(st.checkbox(label, value=True, key=f"suggestion_{i}"))
+        if result.suggestions and st.button("Add selected tasks"):
+            added = 0
+            for s, keep in zip(result.suggestions, checked):
+                if keep:
+                    advisor_pet.add_task(s.to_task())
+                    added += 1
+            del st.session_state.advisor_result
+            st.success(f"Added {added} task{'s' if added != 1 else ''} for {advisor_pet.name}.")
+            st.rerun()
+        if result.rejected:
+            with st.expander("Filtered out by guardrails"):
+                for item, reason in result.rejected:
+                    st.write(f"- `{item}` — {reason}")
+        if result.passages:
+            with st.expander("Guidelines used"):
+                for p in result.passages:
+                    st.write(f"**{p.id}** — {p.text}")
+else:
+    st.info("Add a pet first to get AI care suggestions.")
 
 if owner.get_all_tasks():
     scheduler = Scheduler(owner)

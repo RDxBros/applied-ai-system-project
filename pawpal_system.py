@@ -21,6 +21,7 @@ class Task:
     time: str | None = None  # fixed start as "HH:MM"; None = scheduler picks a slot
     completed: bool = False
     due_date: date = field(default_factory=date.today)
+    source: str | None = None  # knowledge-passage id when suggested by the AI advisor
 
     def mark_complete(self) -> "Task | None":
         """Mark this task as done. Returns the next occurrence for daily/weekly tasks, else None.
@@ -193,6 +194,8 @@ class Scheduler:
                 self.skipped.append((pet, task, "conflicts with another task"))
             else:
                 reason = f"fixed at {task.time}; {task.priority.name.lower()} priority"
+                if task.source:
+                    reason += f"; per {task.source}"
                 plan.append(ScheduledItem(task, pet, start, reason))
                 remaining -= task.duration_minutes
 
@@ -205,6 +208,8 @@ class Scheduler:
                 f"{task.priority.name.lower()} priority; "
                 f"{task.duration_minutes} min fits in the {remaining} min left"
             )
+            if task.source:
+                reason += f"; per {task.source}"
             plan.append(ScheduledItem(task, pet, start, reason))
             remaining -= task.duration_minutes
 
