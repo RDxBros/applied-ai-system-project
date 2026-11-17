@@ -14,6 +14,35 @@ from dotenv import load_dotenv
 from pawpal_system import Pet, Priority, Task, parse_time
 
 logger = logging.getLogger("pawpal")
+logger.addHandler(logging.NullHandler())
+
+_RETRYABLE_CODES = {429, 500, 503, 504}
+
+
+def _timeout_types() -> tuple:
+    types_ = []
+    try:
+        import httpx
+
+        types_.append(httpx.TimeoutException)
+    except ImportError:
+        pass
+    try:
+        import httpx2
+
+        types_.append(httpx2.TimeoutException)
+    except ImportError:
+        pass
+    try:
+        from requests.exceptions import Timeout as RequestsTimeout
+
+        types_.append(RequestsTimeout)
+    except ImportError:
+        pass
+    return tuple(types_)
+
+
+_TIMEOUT_TYPES = _timeout_types()
 
 GENERAL_FILES = ["feeding.md", "medication.md", "grooming_enrichment.md"]
 
@@ -220,30 +249,73 @@ def build_prompt(
 LLM = Callable[[str], str]
 
 
-def gemini_llm(model: str | None = None, api_key: str | None = None) -> LLM:
-    """Return a prompt->text callable backed by Gemini, or raise AdvisorError."""
+def gemini_llm(
+    model: str | None = None,
+    api_key: str | None = None,
+    fallback_model: str | None = None,
+    retries: int = 2,
+    timeout_s: int = 30,
+    client=None,
+    sleep=time.sleep,
+) -> LLM:
+    """Return a prompt->text callable backed by Gemini, or raise AdvisorError.
+
+    Retries transient failures (429/5xx, timeouts) with backoff, then falls back
+    to a second model. Pass ``client`` to inject a fake for tests.
+    """
     load_dotenv()
-    key = api_key or os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise AdvisorError("GEMINI_API_KEY is not set. Add it to .env.")
-    model_name = model or os.environ.get("GEMINI_MODEL") or "gemini-3.8-flash"
+    if client is None:
+        key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise AdvisorError("GEMINI_API_KEY is not set. Add it to .env.")
+        from google import genai
+        from google.genai import types
 
-    from google import genai
-    from google.genai import types
+        client = genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(timeout=timeout_s * 1000),
+        )
 
-    client = genai.Client(api_key=key)
+    primary = model or os.environ.get("GEMINI_MODEL") or "gemini-3.1-flash-lite"
+    fallback = (
+        fallback_model or os.environ.get("GEMINI_FALLBACK_MODEL") or "gemini-3.6-flash"
+    )
+    models = [primary] + ([fallback] if fallback and fallback != primary else [])
 
     def call(prompt: str) -> str:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_json_schema=TASK_SCHEMA,
-                temperature=0.2,
-            ),
-        )
-        return response.text
+        from google.genai import types
+
+        last_exc = None
+        for name in models:
+            for attempt in range(retries + 1):
+                try:
+                    response = client.models.generate_content(
+                        model=name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_json_schema=TASK_SCHEMA,
+                            temperature=0.2,
+                        ),
+                    )
+                    logger.info("Gemini answered with model %s", name)
+                    return response.text
+                except Exception as exc:
+                    last_exc = exc
+                    logger.warning(
+                        "Gemini %s attempt %d failed: %s", name, attempt + 1, exc
+                    )
+                    message = str(exc).lower()
+                    retryable = (
+                        getattr(exc, "code", None) in _RETRYABLE_CODES
+                        or isinstance(exc, _TIMEOUT_TYPES)
+                        or "timed out" in message
+                        or "timeout" in message
+                    )
+                    if not retryable or attempt == retries:
+                        break
+                    sleep(2**attempt)
+        raise last_exc
 
     return call
 
@@ -323,6 +395,8 @@ def validate_suggestions(
             category = item.get("category")
             when = item.get("time")
             source = item.get("source")
+            if isinstance(source, str):
+                source = source.strip().strip("[]").strip()
             if not isinstance(title, str) or not title.strip() or len(title) > 60:
                 reason = "missing or invalid title"
             elif not isinstance(duration, int) or isinstance(duration, bool) or not 1 <= duration <= 240:
@@ -391,6 +465,12 @@ def suggest_tasks(
         return AdvisorResult([], [], locals().get("passages", []), error=str(exc))
     except Exception as exc:
         logger.error("Advisor LLM call failed: %s", exc)
-        return AdvisorResult(
-            [], [], locals().get("passages", []), error=f"Could not reach Gemini: {exc}"
-        )
+        message = str(exc)
+        if "503" in message or "UNAVAILABLE" in message:
+            friendly = (
+                "Gemini is overloaded right now (tried primary and fallback models). "
+                "Please try again in a minute."
+            )
+        else:
+            friendly = f"Could not reach Gemini: {message[:150]}"
+        return AdvisorResult([], [], locals().get("passages", []), error=friendly)

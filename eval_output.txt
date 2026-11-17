@@ -1,0 +1,96 @@
+
+=== Case 1: Biscuit, 4-year-old dog, preferences={}
+  Retrieved: ['dog.md#dental-care', 'dog.md#exercise-and-walks', 'dog.md#feeding-routine', 'life_stages.md#adult-pets']
+  Suggested: Morning walk (30 min, high, daily, 07:00) <- dog.md#exercise-and-walks
+             Regular walks support weight, joints, and behavior in adult dogs.
+  Suggested: Evening walk (30 min, high, daily, 18:00) <- dog.md#exercise-and-walks
+             Regular walks support weight, joints, and behavior in adult dogs.
+  Suggested: Morning meal (15 min, high, daily, 07:00) <- dog.md#feeding-routine
+             Adult dogs do well with two measured meals a day at consistent times.
+  Suggested: Evening meal (15 min, high, daily, 18:00) <- dog.md#feeding-routine
+             Adult dogs do well with two measured meals a day at consistent times.
+  Suggested: Teeth brushing (5 min, medium, weekly, flexible) <- dog.md#dental-care
+             Brushing a dog's teeth several times a week helps maintain dental health.
+    [PASS] advisor returned without error
+    [PASS] at least one suggestion accepted
+    [PASS] every suggestion cites a retrieved passage
+    [PASS] no suggestion duplicates an existing task
+  Today's Schedule for Jordan (90 min available):
+    07:00 - Morning walk for Biscuit (30 min) [fixed at 07:00; high priority; per dog.md#exercise-and-walks]
+    08:00 - Teeth brushing for Biscuit (5 min) [medium priority; 5 min fits in the 30 min left; per dog.md#dental-care]
+    18:00 - Evening walk for Biscuit (30 min) [fixed at 18:00; high priority; per dog.md#exercise-and-walks]
+    Skipped: Morning meal for Biscuit (15 min) - conflicts with another task
+    Skipped: Evening meal for Biscuit (15 min) - conflicts with another task
+    [PASS] plan includes an AI task citing its source
+
+=== Case 2: Luna, 12-year-old cat, preferences={'notes': 'senior cat, joint stiffness'}
+  Retrieved: ['cat.md#litter-box-care', 'cat.md#play-and-enrichment', 'life_stages.md#senior-pets']
+  Suggested: Gentle exercise session (15 min, medium, daily, flexible) <- life_stages.md#senior-pets
+             Shorter and gentler exercise sessions are beneficial for senior pets with joint stiffness.
+  Suggested: Daily litter box scoop (5 min, high, daily, flexible) <- cat.md#litter-box-care
+             Daily scooping is required to maintain proper hygiene for the litter box.
+  Suggested: Full litter change (15 min, medium, weekly, flexible) <- cat.md#litter-box-care
+             The litter should be fully changed once a week to ensure a clean environment.
+  Suggested: Play session with wand toy (10 min, medium, daily, flexible) <- cat.md#play-and-enrichment
+             Two daily play sessions help provide necessary enrichment for cats.
+    [PASS] advisor returned without error
+    [PASS] at least one suggestion accepted
+    [PASS] every suggestion cites a retrieved passage
+    [PASS] no suggestion duplicates an existing task
+  Today's Schedule for Jordan (90 min available):
+    08:00 - Daily litter box scoop for Luna (5 min) [high priority; 5 min fits in the 90 min left; per cat.md#litter-box-care]
+    08:05 - Play session with wand toy for Luna (10 min) [medium priority; 10 min fits in the 85 min left; per cat.md#play-and-enrichment]
+    08:15 - Gentle exercise session for Luna (15 min) [medium priority; 15 min fits in the 75 min left; per life_stages.md#senior-pets]
+    08:30 - Full litter change for Luna (15 min) [medium priority; 15 min fits in the 60 min left; per cat.md#litter-box-care]
+    [PASS] plan includes an AI task citing its source
+
+=== Case 3: Pip, 0-year-old dog, preferences={'notes': 'new puppy, training'}
+  Existing tasks: ['Morning walk']
+  Retrieved: ['dog.md#dental-care', 'dog.md#training-and-enrichment', 'grooming_enrichment.md#daily-enrichment', 'life_stages.md#puppies-and-kittens']
+  Suggested: Puppy training session (10 min, high, daily, flexible) <- life_stages.md#puppies-and-kittens
+             Short training sessions are essential for young puppies to support learning and development.
+  Suggested: Small meal feeding (5 min, high, daily, flexible) <- life_stages.md#puppies-and-kittens
+             Puppies under one year old require frequent, small meals throughout the day.
+  Suggested: Teeth brushing (5 min, medium, daily, flexible) <- dog.md#dental-care
+             Daily brushing with dog-safe toothpaste is recommended to maintain good dental health.
+  Suggested: Puzzle toy enrichment (20 min, medium, daily, flexible) <- grooming_enrichment.md#daily-enrichment
+             Daily enrichment activities help keep the puppy engaged and reduce anxiety behaviors.
+    [PASS] advisor returned without error
+    [PASS] at least one suggestion accepted
+    [PASS] every suggestion cites a retrieved passage
+    [PASS] no suggestion duplicates an existing task
+  Today's Schedule for Jordan (90 min available):
+    08:00 - Small meal feeding for Pip (5 min) [high priority; 5 min fits in the 90 min left; per life_stages.md#puppies-and-kittens]
+    08:05 - Puppy training session for Pip (10 min) [high priority; 10 min fits in the 85 min left; per life_stages.md#puppies-and-kittens]
+    08:15 - Teeth brushing for Pip (5 min) [medium priority; 5 min fits in the 75 min left; per dog.md#dental-care]
+    08:20 - Morning walk for Pip (15 min) [medium priority; 15 min fits in the 70 min left]
+    08:35 - Puzzle toy enrichment for Pip (20 min) [medium priority; 20 min fits in the 55 min left; per grooming_enrichment.md#daily-enrichment]
+    [PASS] plan includes an AI task citing its source
+
+=== Consistency: Case 1 run again
+  Sources run 1: ['dog.md#dental-care', 'dog.md#exercise-and-walks', 'dog.md#feeding-routine']
+  Sources run 2: ['dog.md#dental-care', 'dog.md#exercise-and-walks', 'dog.md#feeding-routine']
+  Source overlap: 100%
+    [PASS] repeat run cites mostly the same guidelines (>= 50% overlap)
+
+=== Guardrail cases (scripted LLM output)
+  Rejected: 'Morning walk' - duplicates an existing task
+  Rejected: 'Agility class' - cites a source that was not retrieved
+  Rejected: 'Midnight snack' - invalid time
+  Rejected: 'Marathon' - duration_minutes must be an integer from 1 to 240
+  Rejected: 'Late walk' - task would end after midnight
+  Accepted: ['Evening walk']
+    [PASS] valid item kept
+    [PASS] duplicate of existing task rejected
+    [PASS] hallucinated source rejected
+    [PASS] invalid time 25:00 rejected
+    [PASS] 600-minute duration rejected
+    [PASS] task past midnight rejected
+  Non-JSON reply -> error: Gemini returned unparseable JSON: Expecting value: line 1 column 1 (char 0)
+    [PASS] non-JSON reply handled without crashing
+  Outage -> error: Gemini is overloaded right now (tried primary and fallback models). Please try again in a minute.
+    [PASS] API outage handled without crashing
+  Senior cat retrieval: ['life_stages.md#senior-pets', 'cat.md#litter-box-care', 'cat.md#play-and-enrichment']
+    [PASS] cat retrieval excludes dog guidelines
+
+=== Summary: 25/25 checks passed

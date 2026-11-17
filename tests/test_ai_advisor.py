@@ -188,3 +188,85 @@ def test_accepted_suggestion_flows_into_schedule(dog_passages):
 
     assert plan[0].task.title == "Evening walk"
     assert f"per {source}" in plan[0].reason
+
+
+class FakeError(Exception):
+    def __init__(self, message, code=None):
+        super().__init__(message)
+        self.code = code
+
+
+class FakeModels:
+    def __init__(self, script):
+        self.script = list(script)
+        self.models_called = []
+
+    def generate_content(self, model=None, contents=None, config=None):
+        self.models_called.append(model)
+        result = self.script.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+class FakeClient:
+    def __init__(self, script):
+        self.models = FakeModels(script)
+
+
+class FakeResponse:
+    def __init__(self, text):
+        self.text = text
+
+
+def test_bracketed_source_normalized(dog_passages):
+    source = dog_passages[0].id
+    raw = json.dumps({"tasks": [make_item(f"[{source}]")]})
+    suggestions, rejected = validate_suggestions(raw, dog_passages, [])
+    assert not rejected
+    assert suggestions[0].source == source
+
+
+def test_retry_then_success_on_primary():
+    sleeps = []
+    client = FakeClient(
+        [FakeError("503 UNAVAILABLE", code=503), FakeError("503", code=503), FakeResponse("ok")]
+    )
+    llm = gemini_llm(client=client, sleep=sleeps.append)
+    assert llm("prompt") == "ok"
+    assert sleeps == [1, 2]
+    assert set(client.models.models_called) == {"gemini-3.1-flash-lite"}
+    assert len(client.models.models_called) == 3
+
+
+def test_non_retryable_goes_straight_to_fallback():
+    client = FakeClient([FakeError("404 NOT FOUND", code=404), FakeResponse("fallback ok")])
+    llm = gemini_llm(client=client, sleep=lambda s: None, fallback_model="fb-model")
+    assert llm("prompt") == "fallback ok"
+    assert client.models.models_called == ["gemini-3.1-flash-lite", "fb-model"]
+
+
+def test_all_fail_reraises_after_retries_on_both_models():
+    script = [FakeError("503", code=503) for _ in range(6)]
+    client = FakeClient(script)
+    llm = gemini_llm(client=client, sleep=lambda s: None, fallback_model="fb-model")
+    with pytest.raises(FakeError):
+        llm("prompt")
+    assert client.models.models_called == ["gemini-3.1-flash-lite"] * 3 + ["fb-model"] * 3
+
+
+def test_suggest_tasks_503_error_is_friendly_and_short():
+    def boom(prompt):
+        raise FakeError("503 UNAVAILABLE: " + "x" * 500, code=503)
+
+    result = suggest_tasks(Pet("Biscuit", "dog", age=3), llm=boom)
+    assert result.error
+    assert "overloaded" in result.error
+    assert len(result.error) <= 200
+
+
+def test_gemini_llm_empty_key_still_raises(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    with pytest.raises(AdvisorError):
+        gemini_llm(api_key="")
